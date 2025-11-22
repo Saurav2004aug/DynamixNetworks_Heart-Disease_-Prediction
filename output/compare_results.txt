@@ -1,5 +1,124 @@
-Model Accuracies:
-Logistic Regression: 100.00%
-Decision Tree: 100.00%
-Random Forest: 100.00%
-K-Nearest Neighbors (K-NN): 92.39%
+Model comparison results
+Data: heart1.csv
+Run time (sec): 5.24
+
+Model: LogisticRegression
+CV best ROC-AUC: 0.7450962336870195
+Test accuracy: 0.6902
+Test ROC AUC: 0.7099
+Test Average Precision (AP): 0.7331
+Confusion matrix:
+49 33
+24 78
+
+Classification report:
+              precision    recall  f1-score   support
+
+           0       0.67      0.60      0.63        82
+           1       0.70      0.76      0.73       102
+
+    accuracy                           0.69       184
+   macro avg       0.69      0.68      0.68       184
+weighted avg       0.69      0.69      0.69       184
+
+------------------------------------------------------------
+Model: RandomForest
+CV best ROC-AUC: 0.7256643356643356
+Test accuracy: 0.6685
+Test ROC AUC: 0.7165
+Test Average Precision (AP): 0.7441
+Confusion matrix:
+52 30
+31 71
+
+Classification report:
+              precision    recall  f1-score   support
+
+           0       0.63      0.63      0.63        82
+           1       0.70      0.70      0.70       102
+
+    accuracy                           0.67       184
+   macro avg       0.66      0.67      0.66       184
+weighted avg       0.67      0.67      0.67       184
+
+------------------------------------------------------------
+Model: GradientBoosting
+CV best ROC-AUC: 0.7349956938574825
+Test accuracy: 0.6902
+Test ROC AUC: 0.7277
+Test Average Precision (AP): 0.7236
+Confusion matrix:
+44 38
+19 83
+
+Classification report:
+              precision    recall  f1-score   support
+
+           0       0.70      0.54      0.61        82
+           1       0.69      0.81      0.74       102
+
+    accuracy                           0.69       184
+   macro avg       0.69      0.68      0.68       184
+weighted avg       0.69      0.69      0.68       184
+
+------------------------------------------------------------
+Model: SVM
+CV best ROC-AUC: 0.7402335073337782
+Test accuracy: 0.6957
+Test ROC AUC: 0.7083
+Test Average Precision (AP): 0.7317
+Confusion matrix:
+49 33
+23 79
+
+Classification report:
+              precision    recall  f1-score   support
+
+           0       0.68      0.60      0.64        82
+           1       0.71      0.77      0.74       102
+
+    accuracy                           0.70       184
+   macro avg       0.69      0.69      0.69       184
+weighted avg       0.69      0.70      0.69       184
+
+------------------------------------------------------------
+Model: KNN
+CV best ROC-AUC: 0.7029258255545519
+Test accuracy: 0.6576
+Test ROC AUC: 0.6829
+Test Average Precision (AP): 0.6898
+Confusion matrix:
+42 40
+23 79
+
+Classification report:
+              precision    recall  f1-score   support
+
+           0       0.65      0.51      0.57        82
+           1       0.66      0.77      0.71       102
+
+    accuracy                           0.66       184
+   macro avg       0.66      0.64      0.64       184
+weighted avg       0.66      0.66      0.65       184
+
+------------------------------------------------------------
+Model: DecisionTree
+CV best ROC-AUC: 0.6892030863846582
+Test accuracy: 0.6630
+Test ROC AUC: 0.6798
+Test Average Precision (AP): 0.6779
+Confusion matrix:
+44 38
+24 78
+
+Classification report:
+              precision    recall  f1-score   support
+
+           0       0.65      0.54      0.59        82
+           1       0.67      0.76      0.72       102
+
+    accuracy                           0.66       184
+   macro avg       0.66      0.65      0.65       184
+weighted avg       0.66      0.66      0.66       184
+
+------------------------------------------------------------

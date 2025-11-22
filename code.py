@@ -1,140 +1,138 @@
+import os
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
+from pandas.api.types import is_numeric_dtype
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import joblib
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-print("All libraries imported successfully.")
+extra_models = {}
 
-try:
-    data = pd.read_csv("heart1.csv")
-    print("Dataset loaded successfully.")
-except FileNotFoundError:
-    print("ERROR: File not found. Did you name the file 'heart1.csv'?")
-    print("Please check the file name and correct it.")
-    data = pd.DataFrame()
+RANDOM_STATE = 42
+CV_SPLITS = 5
+OUTPUT_DIR = 'output'
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+RESULTS_FILE = os.path.join(OUTPUT_DIR, 'compare_results.txt')
+BARPLOT_FILE = os.path.join(OUTPUT_DIR, 'compare_barplot.png')
+BEST_MODEL_FILE = os.path.join(OUTPUT_DIR, 'best_model.joblib')
 
-if not data.empty:
-    print("\n--- First 5 rows of Data ---")
-    print(data.head())
+data = pd.read_csv('heart1.csv')
+data['target'] = (data['num'] > 0).astype(int)
 
-    print(f"\nDataset contains {data.shape[0]} rows and {data.shape[1]} columns.")
+X = data.select_dtypes(include=[np.number]).drop(columns=['num', 'target'], errors='ignore')
+y = data['target']
 
-    print("\n--- Column Information (Data Types) ---")
-    data.info()
+leakage_threshold = 0.01
+suspects = [c for c in X.columns if is_numeric_dtype(X[c]) and np.mean(X[c].values == y.values) > leakage_threshold]
+drop_cols = []
+if 'id' in X.columns:
+    drop_cols.append('id')
+drop_cols += suspects
+drop_cols = list(dict.fromkeys(drop_cols))
+if drop_cols:
+    print("Dropping columns:", drop_cols)
+X = X.drop(columns=drop_cols, errors='ignore')
 
-    print("\n--- Statistical Summary of Data ---")
-    print(data.describe())
+print("Missing values (per feature):")
+print(X.isnull().sum())
 
-    print("\n--- Checking for Missing Values ---")
-    print(data.isnull().sum())
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,
+                                                    random_state=RANDOM_STATE, stratify=y)
+print(f"Train: {X_train.shape}, Test: {X_test.shape}")
 
-    print("\n--- Checking for Duplicate Rows ---")
-    duplicate_count = data.duplicated().sum()
-    print(f"Number of duplicate rows: {duplicate_count}")
+models = {
+    'LogisticRegression': LogisticRegression(max_iter=2000, random_state=RANDOM_STATE),
+    'DecisionTree': DecisionTreeClassifier(random_state=RANDOM_STATE),
+    'RandomForest': RandomForestClassifier(n_estimators=200, random_state=RANDOM_STATE),
+    'KNN': KNeighborsClassifier(n_neighbors=5),
+    'SVM': SVC(probability=True, random_state=RANDOM_STATE),
+    'GradientBoosting': GradientBoostingClassifier(random_state=RANDOM_STATE),
+}
+models.update(extra_models)
 
-    if duplicate_count > 0:
-        data = data.drop_duplicates()
-        print(f"Duplicate rows removed. New shape: {data.shape}")
+results = []
+test_accuracies = {}
 
-    print("\n--- Starting EDA and Visualizations... ---")
+for name, estimator in models.items():
+    print(f"\n=== Evaluating {name} ===")
+    pipe = Pipeline([
+        ('imputer', SimpleImputer(strategy='mean')),
+        ('scaler', StandardScaler()),
+        ('clf', estimator)
+    ])
+    skf = StratifiedKFold(n_splits=CV_SPLITS, shuffle=True, random_state=RANDOM_STATE)
+    try:
+        cv_scores = cross_val_score(pipe, X_train, y_train, cv=skf, scoring='accuracy', n_jobs=-1)
+    except Exception as e:
+        print(f"CV failed for {name}: {e}")
+        cv_scores = np.array([np.nan]*CV_SPLITS)
+    cv_mean = np.nanmean(cv_scores)
+    print("CV accuracies:", np.round(cv_scores, 4), " mean:", np.round(cv_mean, 4))
 
-    sns.set_style("darkgrid")
-
-    # Assuming 'num' contains the diagnosis (0 = no disease, 1-4 = disease)
-    data['target'] = (data['num'] > 0).astype(int)
-
-    numeric_columns = data.select_dtypes(include=[np.number]).columns.tolist()
-
-    plt.figure(figsize=(6, 5))
-    sns.countplot(x='target', data=data)
-    plt.title("Distribution of Heart Disease (0 = No, >0 = Yes)")
-    plt.xlabel("Target (Heart Disease)")
-    plt.ylabel("Count (Number of People)")
-    plt.savefig('output/code_target_distribution.png')
-
-    plt.figure(figsize=(10, 6))
-    sns.histplot(data=data, x='age', hue='target', kde=True, palette='magma')
-    plt.title("Distribution of Heart Disease by Age")
-    plt.xlabel("Age")
-    plt.ylabel("Count")
-    plt.legend(title='Heart Disease', labels=['No', 'Yes'])
-    plt.savefig('output/code_age_distribution.png')
-
-    plt.figure(figsize=(14, 10))
-    numeric_data = data[numeric_columns]
-    correlation_matrix = numeric_data.corr()
-    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f', annot_kws={'size': 8})
-    plt.title("Correlation Heatmap of Numeric Features")
-    plt.savefig('output/code_correlation_heatmap.png')
-
-    print("--- EDA and Visualizations Completed ---")
-
-    columns_to_drop = ['target', 'num', 'id', 'dataset']
-    X = data.select_dtypes(include=[np.number]).drop(columns=[col for col in columns_to_drop if col in data.columns], errors='ignore')
-    y = data['target']
-
-    print(f"\nShape of Features (X) (before cleaning): {X.shape}")
-
-    missing_before = X.isnull().sum().sum()
-    print(f"Missing values in features: {missing_before}")
-
-    if missing_before > 0:
-        X = X.fillna(X.mean())
-        print("Missing values have been filled with column means.")
-
-        missing_after = X.isnull().sum().sum()
-        print(f"Missing values after filling: {missing_after}")
-
-    print(f"Final shape of Features (X): {X.shape}")
-    print(f"Shape of Target (y): {y.shape}")
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    print(f"\nTraining data (X_train) contains {X_train.shape[0]} samples.")
-    print(f"Testing data (X_test) contains {X_test.shape[0]} samples.")
-
-    scaler = StandardScaler()
-
-    X_train = scaler.fit_transform(X_train)
-
-    X_test = scaler.transform(X_test)
-
-    print("\nData scaled successfully.")
-
-    print("Model training started...")
-
-    model = LogisticRegression(max_iter=1000)
-
-    model.fit(X_train, y_train)
-
-    print("Model trained successfully!")
-
-    y_pred = model.predict(X_test)
-
-    accuracy = accuracy_score(y_test, y_pred)
-    print(f"\n--- Model Performance ---")
-    print(f"Model Accuracy: {accuracy * 100:.2f}%")
-
-    print("\n--- Confusion Matrix ---")
+    pipe.fit(X_train, y_train)
+    y_pred = pipe.predict(X_test)
+    test_acc = accuracy_score(y_test, y_pred)
     cm = confusion_matrix(y_test, y_pred)
-    print(cm)
+    cr = classification_report(y_test, y_pred)
+    print(f"Test accuracy for {name}: {test_acc:.4f}")
+    print("Confusion Matrix:\n", cm)
+    results.append({
+        'model': name,
+        'cv_scores': cv_scores.tolist(),
+        'cv_mean': float(cv_mean),
+        'test_accuracy': float(test_acc),
+        'confusion_matrix': cm,
+        'classification_report': cr
+    })
+    test_accuracies[name] = test_acc
 
-    plt.figure(figsize=(6, 5))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-    plt.title('Confusion Matrix')
-    plt.xlabel('Predicted')
-    plt.ylabel('Actual')
-    plt.savefig('output/code_confusion_matrix.png')
+with open(RESULTS_FILE, 'w') as f:
+    for r in results:
+        f.write(f"Model: {r['model']}\n")
+        f.write(f"CV scores: {r['cv_scores']}\n")
+        f.write(f"CV mean: {r['cv_mean']:.4f}\n")
+        f.write(f"Test accuracy: {r['test_accuracy']:.4f}\n")
+        f.write("Confusion matrix:\n")
+        np.savetxt(f, r['confusion_matrix'], fmt='%d')
+        f.write("\nClassification report:\n")
+        f.write(r['classification_report'])
+        f.write("\n" + ("-"*40) + "\n")
 
-    print("\n--- Classification Report ---")
-    print(classification_report(y_test, y_pred))
+print(f"\nSaved comparison results to: {RESULTS_FILE}")
 
-    with open('output/code_results.txt', 'w') as f:
-        f.write(f"Model Accuracy: {accuracy * 100:.2f}%\n\n")
-        f.write("Confusion Matrix:\n")
-        np.savetxt(f, cm, fmt='%d')
-        f.write(f"\n\nClassification Report:\n{classification_report(y_test, y_pred)}")
+plt.figure(figsize=(10, 5))
+sns.barplot(x=list(test_accuracies.keys()), y=list(test_accuracies.values()))
+plt.ylim(0, 1)
+plt.ylabel('Test Accuracy')
+plt.title('Model Test Accuracies')
+plt.xticks(rotation=30)
+plt.tight_layout()
+plt.savefig(BARPLOT_FILE)
+plt.close()
+print(f"Saved barplot to: {BARPLOT_FILE}")
+
+best_model_name = max(test_accuracies, key=test_accuracies.get)
+best_model_idx = [r['model'] for r in results].index(best_model_name)
+best_estimator = list(models.values())[list(models.keys()).index(best_model_name)]
+best_pipe = Pipeline([
+    ('imputer', SimpleImputer(strategy='mean')),
+    ('scaler', StandardScaler()),
+    ('clf', best_estimator)
+])
+best_pipe.fit(X_train, y_train)
+joblib.dump(best_pipe, BEST_MODEL_FILE)
+print(f"Saved best model ({best_model_name}) to: {BEST_MODEL_FILE}")
+
+print("\nSummary of test accuracies:")
+for name, acc in test_accuracies.items():
+    print(f" - {name}: {acc:.4f}")
