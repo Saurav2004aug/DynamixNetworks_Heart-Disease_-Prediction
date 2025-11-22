@@ -1,0 +1,5 @@
+Model Accuracies:
+Logistic Regression: 100.00%
+Decision Tree: 100.00%
+Random Forest: 100.00%
+K-Nearest Neighbors (K-NN): 92.39%
